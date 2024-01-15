@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Ticker</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    #stockTicker {
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      text-align: center;
+    }
+
+    h2 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 15px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background-color: #4caf50;
+      color: white;
+    }
+
+    #stockList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .stockItem {
+      margin: 15px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      width: 300px;
+      background-color: #f9f9f9;
+      transition: background-color 0.3s ease-in-out;
+    }
+
+    .stockItem:hover {
+      background-color: #e0e0e0;
+    }
+
+    label {
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    input {
+      padding: 12px;
+      margin-bottom: 15px;
+      width: 80%;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 12px;
+      background-color: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease-in-out;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #connectionStatus {
+      margin-top: 20px;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+<div id="stockTicker">
+  <h2>Stock Ticker</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Stock Symbol</th>
+        <th>Price</th>
+        <th>Delay</th>
+      </tr>
+    </thead>
+    <tbody id="stockList"></tbody>
+  </table>
+  <div>
+    <label for="symbolInput">Add Stock Symbol:</label>
+    <input type="text" id="symbolInput" />
+    <button onclick="addStock()">Add</button>
+  </div>
+  <div id="connectionStatus"></div>
+</div>
+<script>
+  const socket = new WebSocket("ws://localhost:8080/alladin/ticks");
+  const stockList = document.getElementById("stockList");
+  const connectionStatus = document.getElementById("connectionStatus");
+
+  socket.addEventListener("open", () => {
+    connectionStatus.innerText = "Connected";
+  });
+
+  socket.addEventListener("message", (event) => {
+    const data = JSON.parse(event.data);
+    updateStockPrice(data);
+  });
+
+  socket.addEventListener("close", () => {
+    connectionStatus.innerText = "Connection Closed";
+    alert("Socket connection closed. Please refresh the page to reconnect.");
+  });
+
+  socket.addEventListener("error", () => {
+    connectionStatus.innerText = "Connection Error";
+    alert("Error in socket connection. Please refresh the page to reconnect.");
+  });
+
+  function updateStockPrice(data) {
+    const stockItem = document.getElementById(data.symbol);
+    if (stockItem) {
+      const priceElement = stockItem.querySelector(".price");
+    //   const timestampElement = stockItem.querySelector(".timestamp");
+      const delayElement = stockItem.querySelector(".delay");
+
+      priceElement.innerText = `Price: ${data.price}`;
+    //   const timestampUTC = new Date(data.timestamp).toUTCString(); // Convert microseconds to milliseconds and create UTC date string
+    //   timestampElement.innerText = `Timestamp: ${timestampUTC}`;
+
+      // Calculate delay and display it in milliseconds with precision
+      const nowMilliseconds = Date.now();
+      const delayMilliseconds = nowMilliseconds - Number(data.timestamp)/1000000; // Convert microseconds to milliseconds
+      delayElement.innerText = `Delay: ${delayMilliseconds.toFixed(3)} ms`;
+    }
+  }
+
+  function addStock() {
+    const symbolInput = document.getElementById("symbolInput");
+    const symbol = symbolInput.value.toUpperCase();
+
+    if (symbol.trim() === "") {
+      alert("Please enter a valid stock symbol.");
+      return;
+    }
+
+    // Check if the stock is already in the list
+    if (document.getElementById(symbol)) {
+      alert("Stock already added.");
+      return;
+    }
+
+    // Subscribe to the stock symbol
+    socket.send(JSON.stringify({
+      opType: "subscribe",
+      symbols: [symbol]
+    }));
+
+    // Create a new stock item
+    const stockItem = document.createElement("li");
+    stockItem.id = symbol;
+    stockItem.className = "stockItem";
+    stockItem.innerHTML = `
+      <div>${symbol}</div>
+      <div class="price">Price: -</div>
+      <div class="delay">Delay: -</div>
+    `;
+
+    stockList.appendChild(stockItem);
+
+    // Clear the input field
+    symbolInput.value = "";
+  }
+</script>
+
+</body>
+</html>

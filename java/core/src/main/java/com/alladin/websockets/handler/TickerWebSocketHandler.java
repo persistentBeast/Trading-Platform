@@ -12,7 +12,10 @@ import com.alladin.model.TickerWebsocketSession;
 import com.alladin.websockets.registry.TickerWebsocketRegistry;
 import com.google.gson.Gson;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Component
+@Slf4j
 public class TickerWebSocketHandler extends TextWebSocketHandler {
 
 	@Autowired
@@ -21,7 +24,13 @@ public class TickerWebSocketHandler extends TextWebSocketHandler {
 	Gson gson = new Gson();
 
 	@Override
+	public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+		log.info("New session established: {}", session.getId());
+	}
+
+	@Override
 	public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) throws Exception {
+		log.info("Session closed: {}", session.getId());
 		tickerWebsocketRegistry.removeTickerWebsocketSession(new TickerWebsocketSession(session, null));
 	}
 
@@ -44,11 +53,18 @@ public class TickerWebSocketHandler extends TextWebSocketHandler {
 	}
 
 	public void sendTick(TickerWebsocketOutgoingMessage tick) {
+		if(tickerWebsocketRegistry.get(tick.getSymbol()) == null) {
+			return;
+		}
 		tickerWebsocketRegistry.get(tick.getSymbol()).forEach(tickerWebsocketSession -> {
 			try {
-				tickerWebsocketSession.getSession().sendMessage(new TextMessage(tick.toString()));
+				if(!tickerWebsocketRegistry.getTickerWebsocketSessions().containsKey(tickerWebsocketSession.getSession().getId())){
+                    return;
+                }				
+				tickerWebsocketSession.getSession().sendMessage(new TextMessage(gson.toJson(tick)));
 			} catch (Exception e) {
 				e.printStackTrace();
+				log.error("Error sending tick to session: {}, err :{}", tickerWebsocketSession.getSession().getId(), e.getMessage());
 			}
 		});
 	}

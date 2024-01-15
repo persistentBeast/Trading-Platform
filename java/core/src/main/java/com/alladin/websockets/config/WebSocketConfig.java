@@ -19,7 +19,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
 	@Override
 	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-		registry.addHandler(tickerWebSocketHandler, "/ticks");
+		registry.addHandler(tickerWebSocketHandler, "/ticks")
+		.setAllowedOrigins("*");
 	}
 
 }
