@@ -1,5 +1,14 @@
 package com.alladin.websockets.handler;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.tomcat.util.threads.ThreadPoolExecutor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
@@ -22,6 +31,9 @@ public class TickerWebSocketHandler extends TextWebSocketHandler {
 	TickerWebsocketRegistry tickerWebsocketRegistry;
 
 	Gson gson = new Gson();
+
+	ExecutorService executorService = new ThreadPoolExecutor(50, 100, 1, TimeUnit.MINUTES, 
+		new ArrayBlockingQueue<>(10000));
 
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -56,17 +68,26 @@ public class TickerWebSocketHandler extends TextWebSocketHandler {
 		if(tickerWebsocketRegistry.get(tick.getSymbol()) == null) {
 			return;
 		}
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
 		tickerWebsocketRegistry.get(tick.getSymbol()).forEach(tickerWebsocketSession -> {
-			try {
-				if(!tickerWebsocketRegistry.getTickerWebsocketSessions().containsKey(tickerWebsocketSession.getSession().getId())){
-                    return;
-                }				
-				tickerWebsocketSession.getSession().sendMessage(new TextMessage(gson.toJson(tick)));
-			} catch (Exception e) {
-				e.printStackTrace();
-				log.error("Error sending tick to session: {}, err :{}", tickerWebsocketSession.getSession().getId(), e.getMessage());
-			}
+
+			CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+				try {
+					if(!tickerWebsocketRegistry.getTickerWebsocketSessions().containsKey(tickerWebsocketSession.getSession().getId())){
+						return;
+					}				
+					tickerWebsocketSession.getSession().sendMessage(new TextMessage(gson.toJson(tick)));
+				} catch (Exception e) {
+					e.printStackTrace();
+					log.error("Error sending tick to session: {}, err :{}", tickerWebsocketSession.getSession().getId(), e.getMessage());
+				}
+			}, executorService);
+
+			futures.add(future);
 		});
+
+		CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).join();
+
 	}
 
 }
