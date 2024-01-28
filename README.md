@@ -1,1 +1,1 @@
-# Trading-Platform
+# Trading-Platform# Vertx-Tickr
