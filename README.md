@@ -1,1 +1,2 @@
-# Trading-Platform# Vertx-Tickr
+# Trading-Platform
+1. Ticker System
